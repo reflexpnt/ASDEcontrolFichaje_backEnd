@@ -165,9 +165,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
 # Para desarrollo
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'fichajeRemoto/static'),
-]
+#STATICFILES_DIRS = [
+#    os.path.join(BASE_DIR, 'fichajeRemoto/static'),
+#]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -184,10 +184,12 @@ PWA_APP_BACKGROUND_COLOR = '#f8f9fa'
 PWA_APP_DISPLAY = 'standalone'
 PWA_APP_SCOPE = '/fichajeRemoto/'
 PWA_APP_START_URL = '/fichajeRemoto/'  # Debe coincidir con tu URL de acceso
+PWA_APP_ID = '/fichajeRemoto/'
 PWA_APP_ICONS = [
     {
         'src': '/static/fichajeRemoto/pwa_icons/icon-128x128.png',   #'/static/icons/icon-192x192.png',
-        'sizes': '128x128'
+        'sizes': '128x128',
+        'type': 'image/png'
     },
    # {
    #     'src': '/static/fichajeRemoto/pwa_icons/icon-192x192.png',   #'/static/icons/icon-192x192.png',
@@ -195,7 +197,8 @@ PWA_APP_ICONS = [
    # },
     {
         'src': '/static/fichajeRemoto/pwa_icons/icon-512x512.png',   #'/static/icons/icon-512x512.png',
-        'sizes': '512x512'
+        'sizes': '512x512',
+        'type': 'image/png'
     }
 ]
 PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static/js', 'serviceworker.js')
