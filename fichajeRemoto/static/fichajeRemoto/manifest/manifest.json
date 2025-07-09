@@ -1,0 +1,45 @@
+{
+  "name": "ASDE Fichaje Remoto",
+  "short_name": "ASDE Fichaje",
+  "description": "ASDE Acceso móvil al sistema de fichaje remoto",
+  "id": "/fichajeRemoto/",
+  "start_url": "/fichajeRemoto/",
+  "scope": "/fichajeRemoto/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#ffffff",
+  "background_color": "#f8f9fa",
+  "lang": "es-ES",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/static/fichajeRemoto/pwa_icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/fichajeRemoto/pwa_icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/fichajeRemoto/pwa_icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fichar Entrada",
+      "short_name": "Entrada",
+      "url": "/fichajeRemoto/?accion=entrada",
+      "icons": [
+        {
+          "src": "/static/fichajeRemoto/pwa_icons/icon-128x128.png",
+          "sizes": "128x128",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

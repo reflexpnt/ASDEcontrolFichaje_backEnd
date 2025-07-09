@@ -26,7 +26,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-vs32uoax*yjq+uw(!&t)e=4%!1om#x%9w^^kk52q$e4$-3ewpm'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+#DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -191,15 +192,18 @@ PWA_APP_ICONS = [
         'sizes': '128x128',
         'type': 'image/png'
     },
-   # {
-   #     'src': '/static/fichajeRemoto/pwa_icons/icon-192x192.png',   #'/static/icons/icon-192x192.png',
-   #     'sizes': '192x192'
-   # },
+    {
+        'src': '/static/fichajeRemoto/pwa_icons/icon-192x192.png',   #'/static/icons/icon-192x192.png',
+        'sizes': '192x192',
+        'type': 'image/png'
+    },
     {
         'src': '/static/fichajeRemoto/pwa_icons/icon-512x512.png',   #'/static/icons/icon-512x512.png',
         'sizes': '512x512',
         'type': 'image/png'
     }
 ]
-PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static/js', 'serviceworker.js')
+
+#PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static/js', 'serviceworker.js')
+PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'fichajeRemoto/static/fichajeRemoto/js/serviceworker.js')
 
