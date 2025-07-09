@@ -1,4 +1,5 @@
 <!-- fichajeRemoto/templates/fichajeRemoto/fichaje.html - VERSIÓN 2.1 FINAL - v3 -->
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -13,14 +14,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-orientation" content="portrait">
 
-  {% load static %}
+ 
   <link rel="stylesheet" href="{% static 'fichajeRemoto/css/fichaje.css' %}">
   
   <script src="https://unpkg.com/htmx.org@1.9.5"></script>
   <script src="https://unpkg.com/alpinejs" defer></script>
 
-  <!-- <link rel="manifest" href="{% url 'manifest' %}"> -->
-  <link rel="manifest" href="{% static 'fichajeRemoto/manifest/manifest.json' %}">
+  <link rel="manifest" href="{% static 'fichajeRemoto/pwa/manifest/manifest.json' %}">
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register("{% url 'serviceworker' %}")

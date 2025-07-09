@@ -165,7 +165,6 @@ STATIC_ROOT=os.path.join(BASE_DIR, 'static/')
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
-# Para desarrollo
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'fichajeRemoto/static'),
 ]
@@ -205,5 +204,5 @@ PWA_APP_ICONS = [
 ]
 
 #PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static/js', 'serviceworker.js')
-PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'fichajeRemoto/static/fichajeRemoto/js/serviceworker.js')
+PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'fichajeRemoto/static/fichajeRemoto/pwa/js/serviceworker.js')
 
