@@ -1,0 +1,9 @@
+- Debajo del Filtro de Empresa deberia ir un checkbox para mostrar 
+solo los usuarios trabajando.
+
+- El Boton Generar PDF , debe ir hacia la derecha
+- El encabezado / filtor sde la pagina deberia estar fijo. 
+        ----- O solo Scroll a los registros con footer con los resumen  ---
+
+ 
+

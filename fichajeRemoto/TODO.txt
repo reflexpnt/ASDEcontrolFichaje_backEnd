@@ -1,0 +1,19 @@
+- Debajo del Filtro de Empresa deberia ir un checkbox para mostrar 
+solo los usuarios trabajando.
+
+- El Boton Generar PDF , debe ir hacia la derecha
+- El encabezado / filtor sde la pagina deberia estar fijo. 
+        ----- O solo Scroll a los registros con footer con los resumen  ---
+
+ 
+
+- no funcion bien la edicion registro (por el TZ) en la version 24_junio  (es la mas completa- al 25 Junio)
+
+
+
+
+
+
+
+quiero que en la lista de registros (la que se despliega cuando tengo un usuario(personal) seleccionado) , poder editara unicamente en los campos Entrada y Salida de cualquier registro. Osea que se presione en el campo y se pueda editar, sin que aparezca ese ninguna ventana de dialogo para edicion. 
+Si modificas el template, escribe solo el bloque <body> (para que no sea tan largo, pues no creo alla modificaciones en los styles)

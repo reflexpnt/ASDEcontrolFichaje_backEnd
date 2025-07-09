@@ -1,0 +1,838 @@
+<!-- fichajeRemoto/templates/fichajeRemoto/administracion.html - VERSIÓN 2.1 FINAL FUNCIONAL v31-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - Fichaje de Horas</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'fichajeRemoto/css/administracion.css' %}">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar con lista de empleados -->
+        <div class="sidebar">
+            <!-- Filtro de empleados trabajando -->
+            <div class="company-filter">
+                <label for="working-filter">
+                    <input type="checkbox" id="working-filter" onchange="filtrarEmpleadosTrabajando()">
+                    Solo empleados trabajando
+                </label>
+            </div>
+
+            <div class="employees-header">
+                <h2>Personal</h2>
+                <span class="employee-count" id="employee-count">0</span>
+            </div>
+            
+            <div id="employees-loading" class="loading">
+                <p>⏳ Cargando empleados...</p>
+            </div>
+            
+            <ul class="employee-list" id="employee-list" style="display: none;">
+            </ul>
+            
+            <div id="employees-error" class="error" style="display: none;">
+                <p>❌ Error al cargar empleados</p>
+            </div>
+        </div>
+
+        <!-- Contenido principal -->
+        <div class="main-content">
+            <div class="header">
+                <h1>ASDE - Gestión de Fichaje de Horas</h1>
+            </div>
+
+            <!-- Filtros de fecha -->
+            <div class="date-filter">
+                <div class="date-filter-header">
+                    <label for="date-filter-toggle" class="date-filter-toggle">
+                        <input type="checkbox" id="date-filter-toggle" onchange="handleToggleDateFilter()">
+                        Habilitar filtro de fechas
+                    </label>
+                    <h3>🗓️ Filtro de Fechas</h3>
+                </div>
+                <div class="date-inputs" id="date-inputs-container">
+                    <div class="date-group">
+                        <label for="fecha-inicio">Fecha Inicial:</label>
+                        <input type="date" id="fecha-inicio" value="" onchange="filtrarRegistrosAutomatico()" disabled>
+                    </div>
+                    <div class="date-group">
+                        <label for="fecha-fin">Fecha Final:</label>
+                        <input type="date" id="fecha-fin" value="" onchange="filtrarRegistrosAutomatico()" disabled>
+                    </div>
+                    <button class="export-btn" onclick="exportarPDF()" id="export-btn" style="display: none;">
+                        📄 Generar PDF
+                    </button>
+                    
+                </div>
+            </div>
+
+            <!-- Filtro de lugar/empresa -->
+            <div class="location-filter" id="location-filter" style="display: none;">
+                <h3>Filtro por Lugar</h3>
+                <label for="location-select">Seleccionar Lugar:</label>
+                <select id="location-select" onchange="aplicarFiltroLugar()">
+                    <option value="">Todos los lugares</option>
+                </select>
+            </div>
+
+            <!-- Sección de registros -->
+            <div class="records-section">
+                <div class="records-header">
+                    <h3 id="records-title">Seleccione un empleado</h3>
+                </div>
+
+                <div id="records-content">
+                    <div class="no-data">
+                        👥 Seleccione un empleado para ver sus registros de fichaje
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let empleadosData = [];
+        let empresasData = [];
+        let selectedEmployeeId = null;
+        let currentRegistros = [];
+        let allRegistros = [];
+        let empleadosOriginales = [];
+        let filtrosActivos = {
+            lugar: '',
+            fechaInicio: '',
+            fechaFin: ''
+        };
+
+        // Definir TODAS las funciones primero
+        function filtrarEmpleadosTrabajando() {
+            const workingFilter = document.getElementById('working-filter');
+            
+            if (!workingFilter) {
+                console.error('Elemento working-filter no encontrado');
+                return;
+            }
+            
+            if (workingFilter.checked) {
+                empleadosData = empleadosOriginales.filter(emp => emp.working === true);
+                console.log('Mostrando solo empleados trabajando:', empleadosData.length);
+            } else {
+                empleadosData = [...empleadosOriginales];
+                console.log('Mostrando todos los empleados:', empleadosData.length);
+            }
+            
+            mostrarEmpleados();
+        }
+
+        // Wrapper para manejar la función async desde el HTML
+        function handleToggleDateFilter() {
+            toggleDateFilter().catch(error => {
+                console.error('Error en toggleDateFilter:', error);
+            });
+        }
+
+        async function toggleDateFilter() {
+            const dateToggle = document.getElementById('date-filter-toggle');
+            const fechaInicio = document.getElementById('fecha-inicio');
+            const fechaFin = document.getElementById('fecha-fin');
+            const dateInputsContainer = document.getElementById('date-inputs-container');
+            
+            console.log('=== TOGGLE DATE FILTER ===');
+            console.log('dateToggle.checked:', dateToggle.checked);
+            console.log('selectedEmployeeId actual:', selectedEmployeeId);
+            
+            if (dateToggle.checked) {
+                // Habilitar filtro de fechas
+                fechaInicio.disabled = false;
+                fechaFin.disabled = false;
+                dateInputsContainer.style.opacity = '1';
+                
+                // Establecer fechas por defecto si están vacías
+                if (!fechaInicio.value || !fechaFin.value) {
+                    establecerFechasDefault();
+                }
+                
+                console.log('Filtro de fechas HABILITADO - Aplicando filtro');
+                
+            } else {
+                // Deshabilitar filtro de fechas
+                fechaInicio.disabled = true;
+                fechaFin.disabled = true;
+                dateInputsContainer.style.opacity = '0.5';
+                
+                console.log('Filtro de fechas DESHABILITADO - Mostrando todos los registros');
+            }
+            
+            // IMPORTANTE: Siempre recargar registros cuando cambia el estado del filtro
+            if (selectedEmployeeId) {
+                console.log('Recargando registros con nuevo estado del filtro...');
+                console.log('Llamando a filtrarRegistros ahora...');
+                
+                // CORRECCIÓN: Usar await para esperar la función async
+                try {
+                    await filtrarRegistros();
+                    console.log('filtrarRegistros completada exitosamente');
+                } catch (error) {
+                    console.error('ERROR en filtrarRegistros:', error);
+                }
+            } else {
+                console.log('No hay empleado seleccionado, no se puede filtrar');
+            }
+        }
+
+        function inicializar() {
+            cargarEmpresas();
+            cargarEmpleados();
+            // No establecer fechas por defecto inicialmente
+            // establecerFechasDefault();
+        }
+
+        async function cargarEmpresas() {
+            try {
+                const response = await fetch('/administracion/api/empresas/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    empresasData = data.empresas;
+                    console.log('Empresas cargadas:', empresasData.length);
+                } else {
+                    console.error('Error cargando empresas:', data.error);
+                }
+                
+            } catch (error) {
+                console.error('Error cargando empresas:', error);
+            }
+        }
+
+        async function cargarEmpleados() {
+            try {
+                const response = await fetch('/administracion/api/empleados/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    empleadosOriginales = data.empleados;
+                    empleadosData = [...empleadosOriginales];
+                    mostrarEmpleados();
+                } else {
+                    mostrarErrorEmpleados(data.error);
+                }
+                
+            } catch (error) {
+                console.error('Error cargando empleados:', error);
+                mostrarErrorEmpleados('Error de conexión');
+            }
+        }
+
+        function mostrarEmpleados() {
+            const loadingDiv = document.getElementById('employees-loading');
+            const employeeList = document.getElementById('employee-list');
+            const employeeCount = document.getElementById('employee-count');
+            const errorDiv = document.getElementById('employees-error');
+            
+            loadingDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            employeeList.style.display = 'block';
+            employeeList.innerHTML = '';
+            
+            empleadosData.forEach(emp => {
+                const li = document.createElement('li');
+                li.className = `employee-item ${emp.working ? 'working' : ''}`;
+                li.onclick = () => seleccionarEmpleado(emp.id);
+                li.innerHTML = `
+                    ${emp.working ? '<span class="working-indicator"></span>' : ''}
+                    <div class="employee-name">${emp.nombre} ${emp.apellido}</div>
+                    <div class="employee-dni">DNI: ${emp.dni}</div>
+                `;
+                employeeList.appendChild(li);
+            });
+            
+            employeeCount.textContent = empleadosData.length;
+        }
+
+        function mostrarErrorEmpleados(error) {
+            const loadingDiv = document.getElementById('employees-loading');
+            const employeeList = document.getElementById('employee-list');
+            const errorDiv = document.getElementById('employees-error');
+            
+            loadingDiv.style.display = 'none';
+            employeeList.style.display = 'none';
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = `<p>❌ Error: ${error}</p>`;
+        }
+
+        function seleccionarEmpleado(employeeId) {
+            document.querySelectorAll('.employee-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            const items = document.querySelectorAll('.employee-item');
+            const index = empleadosData.findIndex(emp => emp.id === employeeId);
+            if (index !== -1) {
+                items[index].classList.add('selected');
+            }
+            
+            selectedEmployeeId = employeeId;
+            const empleado = empleadosData.find(emp => emp.id === employeeId);
+            
+            document.getElementById('records-title').textContent = 
+                `Registros de ${empleado.nombre} ${empleado.apellido}`;
+            document.getElementById('export-btn').style.display = 'flex';
+            document.getElementById('location-filter').style.display = 'block';
+            
+            filtrosActivos.lugar = '';
+            document.getElementById('location-select').value = '';
+            
+            filtrarRegistros();
+        }
+
+        function establecerFechasDefault() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            
+            const fechaInicioStr = firstDay.toISOString().split('T')[0];
+            const fechaFinStr = today.toISOString().split('T')[0];
+            
+            document.getElementById('fecha-inicio').value = fechaInicioStr;
+            document.getElementById('fecha-fin').value = fechaFinStr;
+            
+            filtrosActivos.fechaInicio = fechaInicioStr;
+            filtrosActivos.fechaFin = fechaFinStr;
+        }
+
+        function filtrarRegistrosAutomatico() {
+            if (selectedEmployeeId) {
+                filtrarRegistros();
+            }
+        }
+
+        async function filtrarRegistros() {
+            if (!selectedEmployeeId) {
+                document.getElementById('records-content').innerHTML = 
+                    '<div class="no-data">👥 Seleccione un empleado para ver sus registros de fichaje</div>';
+                return;
+            }
+
+            filtrosActivos.fechaInicio = document.getElementById('fecha-inicio').value;
+            filtrosActivos.fechaFin = document.getElementById('fecha-fin').value;
+            
+            document.getElementById('records-content').innerHTML = 
+                '<div class="loading">⏳ Cargando registros...</div>';
+
+            try {
+                const url = `/administracion/api/registros/${selectedEmployeeId}/?fecha_inicio=${filtrosActivos.fechaInicio}&fecha_fin=${filtrosActivos.fechaFin}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allRegistros = data.registros;
+                    actualizarLugares(allRegistros);
+                    aplicarTodosFiltros();
+                } else {
+                    document.getElementById('records-content').innerHTML = 
+                        `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+                
+            } catch (error) {
+                console.error('Error cargando registros:', error);
+                document.getElementById('records-content').innerHTML = 
+                    '<div class="error">❌ Error de conexión al cargar registros</div>';
+            }
+        }
+
+        function actualizarLugares(registros) {
+            const locationSelect = document.getElementById('location-select');
+            const selectedValue = locationSelect.value;
+            
+            while (locationSelect.children.length > 1) {
+                locationSelect.removeChild(locationSelect.lastChild);
+            }
+            
+            const lugares = [...new Set(registros.map(reg => reg.lugar))];
+            
+            lugares.forEach(lugar => {
+                const option = document.createElement('option');
+                option.value = lugar;
+                option.textContent = lugar;
+                locationSelect.appendChild(option);
+            });
+            
+            if (selectedValue && lugares.includes(selectedValue)) {
+                locationSelect.value = selectedValue;
+                filtrosActivos.lugar = selectedValue;
+            } else if (selectedValue && !lugares.includes(selectedValue)) {
+                locationSelect.value = '';
+                filtrosActivos.lugar = '';
+            }
+        }
+
+        function aplicarFiltroLugar() {
+            const locationSelect = document.getElementById('location-select');
+            filtrosActivos.lugar = locationSelect.value;
+            aplicarTodosFiltros();
+        }
+
+        function aplicarTodosFiltros() {
+            let registrosFiltrados = allRegistros;
+            
+            if (filtrosActivos.lugar) {
+                registrosFiltrados = registrosFiltrados.filter(reg => reg.lugar === filtrosActivos.lugar);
+            }
+            
+            currentRegistros = registrosFiltrados;
+            mostrarRegistros(currentRegistros);
+        }
+
+        function crearCeldaEditable(valor, registroId, campo) {
+            const valorMostrar = valor || '--:--';
+            return `
+                <span class="editable-time" 
+                      data-registro-id="${registroId}" 
+                      data-campo="${campo}" 
+                      onclick="iniciarEdicionInline(this)">
+                    ${valorMostrar}
+                    <div class="edit-controls">
+                        <button class="btn-save" onclick="guardarEdicionInline(this, event)">✓</button>
+                        <button class="btn-cancel" onclick="cancelarEdicionInline(this, event)">✗</button>
+                    </div>
+                </span>
+            `;
+        }
+
+        function iniciarEdicionInline(elemento) {
+            const editandoActual = document.querySelector('.editable-time.editing');
+            if (editandoActual && editandoActual !== elemento) {
+                cancelarEdicionInline(editandoActual.querySelector('.btn-cancel'), null);
+            }
+
+            const registroId = elemento.dataset.registroId;
+            const campo = elemento.dataset.campo;
+            const registro = allRegistros.find(r => r.id == registroId);
+            const valorActual = campo === 'entrada' ? registro.entrada : registro.salida;
+            
+            elemento.classList.add('editing');
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'time-input';
+            input.placeholder = 'HH:MM';
+            input.maxLength = 5;
+            input.value = valorActual || '';
+            
+            const controls = elemento.querySelector('.edit-controls');
+            const textoOriginal = elemento.childNodes[0].textContent.trim();
+            elemento.innerHTML = '';
+            elemento.appendChild(input);
+            elemento.appendChild(controls);
+            
+            elemento.dataset.textoOriginal = textoOriginal;
+            
+            input.focus();
+            input.select();
+            
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    guardarEdicionInline(controls.querySelector('.btn-save'), e);
+                } else if (e.key === 'Escape') {
+                    cancelarEdicionInline(controls.querySelector('.btn-cancel'), e);
+                }
+            });
+
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/[^\d]/g, '');
+                
+                if (value.length >= 3) {
+                    value = value.substring(0, 2) + ':' + value.substring(2, 4);
+                }
+                
+                if (value.length > 5) {
+                    value = value.substring(0, 5);
+                }
+                
+                e.target.value = value;
+            });
+        }
+
+        async function guardarEdicionInline(boton, evento) {
+            if (evento) evento.stopPropagation();
+            
+            const elemento = boton.closest('.editable-time');
+            const input = elemento.querySelector('.time-input');
+            const registroId = elemento.dataset.registroId;
+            const campo = elemento.dataset.campo;
+            
+            let nuevoValor = input.value.trim();
+            
+            if (nuevoValor && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(nuevoValor)) {
+                alert('Formato inválido. Use HH:MM (ej: 18:30)');
+                input.focus();
+                return;
+            }
+            
+            if (nuevoValor && nuevoValor.includes(':')) {
+                const [h, m] = nuevoValor.split(':');
+                nuevoValor = `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+            }
+            
+            const registro = allRegistros.find(r => r.id == registroId);
+            if (nuevoValor && registro) {
+                const entradaActual = campo === 'entrada' ? nuevoValor : registro.entrada;
+                const salidaActual = campo === 'salida' ? nuevoValor : registro.salida;
+                
+                if (entradaActual && salidaActual && entradaActual !== '--:--' && salidaActual !== '--:--') {
+                    function horaAMinutos(horaStr) {
+                        const [h, m] = horaStr.split(':').map(Number);
+                        return h * 60 + m;
+                    }
+                    
+                    const minutosEntrada = horaAMinutos(entradaActual);
+                    const minutosSalida = horaAMinutos(salidaActual);
+                    
+                    if (minutosEntrada >= minutosSalida) {
+                        const mensaje = campo === 'entrada' 
+                            ? `La hora de entrada (${entradaActual}) no puede ser igual o posterior a la salida (${salidaActual})`
+                            : `La hora de salida (${salidaActual}) debe ser posterior a la entrada (${entradaActual})`;
+                        
+                        alert(mensaje);
+                        input.focus();
+                        return;
+                    }
+                }
+            }
+            
+            try {
+                const datosActualizacion = {};
+                datosActualizacion[campo] = nuevoValor;
+                
+                const response = await fetch(`/administracion/api/editar-registro/${registroId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(datosActualizacion)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    elemento.classList.remove('editing');
+                    elemento.innerHTML = `
+                        ${nuevoValor || '--:--'}
+                        <div class="edit-controls">
+                            <button class="btn-save" onclick="guardarEdicionInline(this, event)">✓</button>
+                            <button class="btn-cancel" onclick="cancelarEdicionInline(this, event)">✗</button>
+                        </div>
+                    `;
+                    
+                    filtrarRegistros();
+                } else {
+                    alert('Error: ' + data.error);
+                    input.focus();
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión');
+                input.focus();
+            }
+        }
+
+        function cancelarEdicionInline(boton, evento) {
+            if (evento) evento.stopPropagation();
+            
+            const elemento = boton.closest('.editable-time');
+            const textoOriginal = elemento.dataset.textoOriginal || '--:--';
+            
+            elemento.classList.remove('editing');
+            elemento.innerHTML = `
+                ${textoOriginal}
+                <div class="edit-controls">
+                    <button class="btn-save" onclick="guardarEdicionInline(this, event)">✓</button>
+                    <button class="btn-cancel" onclick="cancelarEdicionInline(this, event)">✗</button>
+                </div>
+            `;
+        }
+
+        async function guardarCambio(registroId, campo, nuevoValor) {
+            try {
+                const datosActualizacion = {};
+                datosActualizacion[campo] = nuevoValor;
+                
+                const response = await fetch(`/administracion/api/editar-registro/${registroId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(datosActualizacion)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    filtrarRegistros();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexión');
+            }
+        }
+
+        function mostrarRegistros(registros) {
+            const recordsContent = document.getElementById('records-content');
+            
+            if (registros.length === 0) {
+                recordsContent.innerHTML = 
+                    '<div class="no-data">📅 No hay registros para los filtros seleccionados</div>';
+                return;
+            }
+
+            let totalHoras = 0;
+            let totalMinutos = 0;
+            const tableHTML = `
+                <table class="records-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Entrada</th>
+                            <th>Salida</th>
+                            <th>Lugar</th>
+                            <th>Total Horas</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${registros.map(reg => {
+                            const isWorking = !reg.salida;
+                            totalHoras += reg.horas_decimales || 0;
+                            totalMinutos += reg.minutos_totales || 0;
+                            return `
+                                <tr>
+                                    <td>${formatearFecha(reg.fecha)}</td>
+                                    <td class="time-cell">${crearCeldaEditable(reg.entrada, reg.id, 'entrada')}</td>
+                                    <td class="time-cell">${crearCeldaEditable(reg.salida, reg.id, 'salida')}</td>
+                                    <td>${reg.lugar}</td>
+                                    <td class="time-cell">${reg.horas}</td>
+                                    <td class="${isWorking ? 'status-working' : 'status-completed'}">
+                                        ${isWorking ? '🟢 Trabajando' : '✅ Completo'}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            const promedioHoras = registros.length > 0 ? (totalHoras / registros.length).toFixed(2) : 0;
+            const horasTotalHHMM = convertirMinutosAHoras(totalMinutos);
+
+            const statsHTML = `
+                <div class="summary-stats">
+                    <div class="stat-card">
+                        <div class="stat-value">${registros.length}</div>
+                        <div class="stat-label"># Registros</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${totalHoras.toFixed(1)}h</div>
+                        <div class="stat-label">Total Horas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${horasTotalHHMM}</div>
+                        <div class="stat-label">Tiempo Total</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${promedioHoras}h</div>
+                        <div class="stat-label">Promedio Diario</div>
+                    </div>
+                </div>
+            `;
+
+            recordsContent.innerHTML = tableHTML + statsHTML;
+        }
+
+        function formatearFecha(fechaStr) {
+            const fecha = new Date(fechaStr + 'T00:00:00');
+            return fecha.toLocaleDateString('es-ES', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        function convertirMinutosAHoras(minutos) {
+            if (!minutos || minutos === 0) return '0h 0m';
+            const horas = Math.floor(minutos / 60);
+            const mins = minutos % 60;
+            return `${horas}h ${mins}m`;
+        }
+
+        function exportarPDF() {
+            if (!selectedEmployeeId) {
+                alert('Seleccione un empleado primero');
+                return;
+            }
+
+            let url = `/administracion/export-pdf/${selectedEmployeeId}/`;
+            const params = [];
+            
+            // Solo agregar filtros de fecha si el checkbox está habilitado
+            const dateToggle = document.getElementById('date-filter-toggle');
+            if (dateToggle.checked) {
+                if (filtrosActivos.fechaInicio) {
+                    params.push(`fecha_inicio=${filtrosActivos.fechaInicio}`);
+                }
+                if (filtrosActivos.fechaFin) {
+                    params.push(`fecha_fin=${filtrosActivos.fechaFin}`);
+                }
+            }
+            
+            if (filtrosActivos.lugar) {
+                params.push(`lugar=${encodeURIComponent(filtrosActivos.lugar)}`);
+            }
+            
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'reporte_fichaje.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        async function actualizarEmpleados() {
+            try {
+                const workingFilter = document.getElementById('working-filter');
+                const filtroActivo = workingFilter ? workingFilter.checked : false;
+                
+                await cargarEmpleados();
+                
+                if (filtroActivo && workingFilter) {
+                    workingFilter.checked = true;
+                    filtrarEmpleadosTrabajando();
+                }
+            } catch (error) {
+                console.error('Error actualizando empleados:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== VERIFICACIÓN DE FUNCIONES ===');
+            console.log('filtrarRegistros existe:', typeof filtrarRegistros);
+            console.log('toggleDateFilter existe:', typeof toggleDateFilter);
+            console.log('filtrarEmpleadosTrabajando existe:', typeof filtrarEmpleadosTrabajando);
+            console.log('testFiltrarRegistros existe:', typeof testFiltrarRegistros);
+            
+            // BUSCAR DUPLICADOS - Verificar si hay múltiples definiciones
+            console.log('=== VERIFICACIÓN DE DEFINICIONES MÚLTIPLES ===');
+            console.log('Código ANTES de sobreescribir:');
+            console.log(filtrarRegistros.toString().substring(0, 100) + '...');
+            
+            // IMPORTANTE: Sobreescribir la función DESPUÉS de que se cargue la página
+            console.log('=== SOBREESCRIBIENDO FUNCIÓN ===');
+            
+            filtrarRegistros = async function() {
+                console.log('=== INICIO filtrarRegistros SOBRESCRITA ===');
+                console.log('selectedEmployeeId:', selectedEmployeeId);
+                
+                if (!selectedEmployeeId) {
+                    console.log('No hay empleado seleccionado');
+                    document.getElementById('records-content').innerHTML = 
+                        '<div class="no-data">👥 Seleccione un empleado para ver sus registros de fichaje</div>';
+                    return;
+                }
+
+                console.log('Empleado seleccionado, continuando...');
+                document.getElementById('records-content').innerHTML = 
+                    '<div class="loading">⏳ Cargando registros...</div>';
+
+                try {
+                    const dateToggle = document.getElementById('date-filter-toggle');
+                    console.log('dateToggle.checked:', dateToggle.checked);
+                    
+                    let url = `/administracion/api/registros/${selectedEmployeeId}/`;
+                    console.log('URL base:', url);
+                    
+                    if (dateToggle && dateToggle.checked) {
+                        filtrosActivos.fechaInicio = document.getElementById('fecha-inicio').value;
+                        filtrosActivos.fechaFin = document.getElementById('fecha-fin').value;
+                        
+                        console.log('Filtros activos - fechaInicio:', filtrosActivos.fechaInicio);
+                        console.log('Filtros activos - fechaFin:', filtrosActivos.fechaFin);
+                        
+                        const params = [];
+                        if (filtrosActivos.fechaInicio) {
+                            params.push(`fecha_inicio=${filtrosActivos.fechaInicio}`);
+                        }
+                        if (filtrosActivos.fechaFin) {
+                            params.push(`fecha_fin=${filtrosActivos.fechaFin}`);
+                        }
+                        
+                        if (params.length > 0) {
+                            url += '?' + params.join('&');
+                        }
+                    } else {
+                        filtrosActivos.fechaInicio = '';
+                        filtrosActivos.fechaFin = '';
+                        console.log('Filtros limpiados - sin parámetros de fecha');
+                    }
+                    
+                    console.log('URL FINAL de consulta:', url);
+                    
+                    const response = await fetch(url);
+                    console.log('Response recibida, status:', response.status);
+                    
+                    const data = await response.json();
+                    console.log('Data parseada:', data.success ? 'SUCCESS' : 'ERROR');
+                    
+                    if (data.success) {
+                        allRegistros = data.registros;
+                        console.log('Registros cargados:', allRegistros.length);
+                        actualizarLugares(allRegistros);
+                        aplicarTodosFiltros();
+                        console.log('=== FIN filtrarRegistros SOBRESCRITA ===');
+                    } else {
+                        console.log('Error en respuesta:', data.error);
+                        document.getElementById('records-content').innerHTML = 
+                            `<div class="error">❌ Error: ${data.error}</div>`;
+                    }
+                    
+                } catch (error) {
+                    console.error('Error en catch:', error);
+                    document.getElementById('records-content').innerHTML = 
+                        '<div class="error">❌ Error de conexión al cargar registros</div>';
+                }
+            };
+            
+            console.log('Función sobrescrita correctamente');
+            console.log('===================================');
+            
+            inicializar();
+            setInterval(actualizarEmpleados, 30000);
+        });
+    </script>
+</body>
+</html>

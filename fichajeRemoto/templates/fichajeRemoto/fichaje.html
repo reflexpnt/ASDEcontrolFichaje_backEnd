@@ -1,0 +1,226 @@
+<!-- fichajeRemoto/templates/fichajeRemoto/fichaje.html - VERSIÓN 2.1 FINAL - v3 -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Fichaje Remoto</title>
+
+  <!-- Forzar orientación portrait en móviles -->
+  <meta name="screen-orientation" content="portrait">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-orientation" content="portrait">
+
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'fichajeRemoto/css/fichaje.css' %}">
+  
+  <script src="https://unpkg.com/htmx.org@1.9.5"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+
+  <link rel="manifest" href="{% url 'manifest' %}">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register("{% url 'serviceworker' %}")
+      .then(function(registration) {
+        console.log('ServiceWorker registrado:', registration.scope);
+      })
+      .catch(function(error) {
+        console.log('Error al registrar ServiceWorker:', error);
+      });
+  }
+</script>
+
+
+</head>
+
+<body x-data="pinApp()">
+
+  <h2>Ingrese su PIN</h2>
+
+  <input id="displayPin" type="password" :value="pin" maxlength="4" disabled readonly>
+
+  <div class="keypad">
+    <template x-for="num in [1,2,3,4,5,6,7,8,9]" :key="num">
+      <button x-text="num" @click="addDigit(num)" @touchstart="handleTouchStart" @touchend="handleTouchEnd"></button>
+    </template>
+    <button @click="clearPin()" x-text="'C'" class="clear-btn" @touchstart="handleTouchStart" @touchend="handleTouchEnd"></button>
+    <button @click="addDigit(0)" x-text="'0'" @touchstart="handleTouchStart" @touchend="handleTouchEnd"></button>
+  </div>
+
+  <!-- Cartel emergente -->
+  <div
+    x-show="showToast"
+    x-transition.opacity.duration.300ms
+    x-html="toastHTML"
+    x-init="$watch('toastHTML', () => { if(toastHTML) { showToast = true; setTimeout(() => showToast = false, 3500) } })"
+    :class="['toast', toastColor]"
+  ></div>
+
+  <script>
+    // Prevenir rotación de pantalla en móviles
+    function preventRotation() {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(() => {
+          // Si no se puede bloquear, mostrar mensaje cuando se rote
+        });
+      }
+    }
+
+    // Llamar al cargar la página
+    window.addEventListener('load', preventRotation);
+
+    function pinApp(){
+      return {
+        pin: '',
+        showToast: false,
+        toastColor: '',
+        toastHTML: '',
+
+        addDigit(d) {
+          // Vibración táctil
+          if ('vibrate' in navigator) {
+            navigator.vibrate(50);
+          }
+          
+          if (this.pin.length < 4) {
+            this.pin += d;
+            if (this.pin.length === 4) {
+              // Pequeño delay para mejor UX
+              setTimeout(() => {
+                this.enviarPin();
+              }, 200);
+            }
+          }
+        },
+
+        clearPin() {
+          if ('vibrate' in navigator) {
+            navigator.vibrate([100, 50, 100]);
+          }
+          this.pin = '';
+        },
+
+        handleTouchStart(e) {
+          e.target.style.transform = 'scale(0.95)';
+        },
+
+        handleTouchEnd(e) {
+          setTimeout(() => {
+            e.target.style.transform = 'scale(1)';
+          }, 100);
+        },
+
+        enviarPin() {
+          fetch('/api/00:00:00:00:00:00/validatepin', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ pin: this.pin })
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            this.pin = '';
+            if (data.PIN_OK) {
+              const [nombre, horaTipo] = data.PIN_OK.split('_');
+              const [hora, tipo] = horaTipo.split('-');
+
+              if (tipo === 'Entrada') {
+                this.toastColor = 'toast-entrada';
+                this.toastHTML = `
+                  <div class="toast-title">¡Hola ${nombre}!</div>
+                  <div class="toast-sub">Se registró correctamente</div>
+                  <div class="toast-type">✅ ENTRADA</div>
+                  <div class="toast-time">${hora}</div>`;
+                this.beepEntrada();
+
+              } else if (tipo === 'Salida') {
+                this.toastColor = 'toast-salida';
+                this.toastHTML = `
+                  <div class="toast-title">¡Hasta luego ${nombre}!</div>
+                  <div class="toast-sub">Se registró correctamente</div>
+                  <div class="toast-type">🚪 SALIDA</div>
+                  <div class="toast-time">${hora}</div>`;
+                this.beepSalida();
+
+              } else {
+                this.mostrarError('⚠️ Tipo de registro no reconocido');
+              }
+
+            } else {
+              this.mostrarError('❌ PIN incorrecto');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            this.mostrarError('⚠️ Error de conexión');
+          });
+        },
+
+        mostrarError(msg) {
+          this.toastColor = 'toast-error';
+          this.toastHTML = `<div class="toast-title">${msg}</div>`;
+          // Vibración de error
+          if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]);
+          }
+        },
+
+        beepEntrada() {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+          } catch (e) {
+            console.log('Audio not supported');
+          }
+        },
+
+        beepSalida() {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+          } catch (e) {
+            console.log('Audio not supported');
+          }
+        }
+      }
+    }
+
+    // Prevenir zoom en iOS
+    document.addEventListener('gesturestart', function (e) {
+      e.preventDefault();
+    });
+
+    // Prevenir selección de texto
+    document.addEventListener('selectstart', function (e) {
+      e.preventDefault();
+    });
+  </script>
+</body>
+</html>

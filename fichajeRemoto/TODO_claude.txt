@@ -1,0 +1,26 @@
+quiero que en la lista de registros (la que se despliega cuando tengo un usuario(personal) seleccionado) , poder editara unicamente en los campos Entrada y Salida de cualquier registro. Osea que se presione en el campo y se pueda editar, sin que aparezca ese ninguna ventana de dialogo para edicion. 
+Si modificas el template, escribe solo el bloque <body> (para que no sea tan largo, pues no creo alla modificaciones en los styles)
+
+
+Estoy trabajando en un proyecto con Django. Se trata de un registro de ingresos y egresos para el personal de una empresa. El personal mediante un PIN de 4 dígitos (solo números) registra su entrada o salida. El sistema realiza una comprobación si el PIN (unique) existe y a que usuario esta asociado, en caso de no coincidencia devuelve el error.
+El proyecto, además, incorpora un dispositivo NodeMCU-32S conectado a la red Wi-Fi, provisto de teclado y display. Cuando el registro se realiza de forma presencial en la empresa, el usuario introduce su PIN y, de inmediato, el dispositivo envía una solicitud al servidor a través de la API (api/%s/validatepin), la solicitud incluye la dirección MAC del equipo y el PIN viaja en el cuerpo del mensaje JSON.
+El dispositivo además periódicamente consulta a través de otro request API ( api/%s/checkserver ), si el server esta online; del cual espera respuesta y la información de la hora/fecha actual para mantener asi el reloj del display.
+
+El sistema posee una pagina de ingreso remoto, para la modalidad de registros en remoto ( dominio/fichajeRemoto/ ), la misma posee básicamente un teclado virtual con los numero y otro tecla para cancelar.
+
+El sistema posee otra pagina para la administración de los registro y/o generación de un reporte en pdf ( dominio/administracion/ ). En esta pagina podemos encontrar una lista de usuarios ( resaltados en verde los que estan trabajando en el momento ). Cuando se selecciona un usuario se depliega su historico de registros que le corresponde. La pagina cuenta con un filtro tipo calendario y otro filtro por Lugar. Actualmente posee un boton para la generacion de un reporte basico en formato pdf.
+
+Hasta ahi el sistema completo (server y dispositivo nodemcu32s) se encuentran funcionando perfectamente. Los script provistos serian los referente a lo descripto anteriomente en, digamos, su version 1.
+
+Para la proxima version (version2) quiero realizar algunas modificaciones.
+
+1 - De ser posible y sencillo , quisiera separa de los template los styles correspondiente en archivos diferentes. ( asi la edicion tanto del template como de los styles seria mas sencilla).  
+2- Quiero que en la lista de registros  (el historial que se despliega cuando tengo un usuario(personal) seleccionado) , se pueda editar unicamente en los campos Entrada y Salida de cualquier registro. Osea que se presione en el campo y se pueda editar, sin que aparezca ese ninguna ventana de dialogo para edicion o la necesidad de agregar un boton para habilitar la edicion.
+3 - Solo cuante este probado y confirmado por mi las modificaciones de los puntos 1 y 2, procederemos a solucionar un pequeño problema que tengo con el registo de las horas. El servidor esta configurado en e setting.py de django como TIME_ZONE = 'Europe/Madrid'  
+USE_I18N = True
+USE_L10N = True
+USE_TZ = True, 
+pero los problemas reciden que cuando se realiza un request mediate el dispositivo nodemcu32s ( api/%s/checkserver ) el server responde con la hora UTC , y por este motivo en el display del dispositivo se observa el horario con 2 horas de atraso. Ejemplo: el server ejecutandose de manera local a las 17:00hs tras la conexion del dispositivo electronico  su primer request al server , se observa en el display las 15:00hs.
+Otro problema de la misma categoria es que cuando el usuario se registra mediante la pagina de remoto  ( dominio/fichajeRemoto/ ), cuando se recibe el cartel con la confirmacion de entrada/salida , el horario es con 2 horas menos.
+Pero en el admin de django los valores son correctos. 
+Segun https://docs.djangoproject.com/en/5.2/topics/i18n/timezones/ ,  La solución a este problema es usar UTC en el código y usar la hora local solo al interactuar con los usuarios finales
